@@ -1,0 +1,47 @@
+/**
+ * Minimal custom styles for LeetCode AI Assistant UI
+ * Most styling comes from Bootstrap
+ */
+
+.leetcode-ai-assistant-panel {
+    position: fixed;
+    right: 20px;
+    top: 80px;
+    width: 380px;
+    max-height: 80vh;
+    z-index: 10000;
+    overflow: hidden;
+}
+
+.leetcode-ai-assistant-panel.hidden {
+    display: none;
+}
+
+.leetcode-ai-assistant-panel.minimized {
+    height: 40px;
+    overflow: hidden;
+}
+
+/* Custom tab styles that Bootstrap doesn't handle well */
+.tab-content {
+    display: none;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Language dropdown custom styles */
+.language-dropdown {
+    max-width: 150px;
+}
+
+/* Toggle button positioned at the top right of the page */
+.assistant-toggle-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10001;
+}
