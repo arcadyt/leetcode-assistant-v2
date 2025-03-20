@@ -3,8 +3,6 @@
  * Handles configuration UI and settings management
  */
 
-import ConfigManager from '../models/config.js';
-
 document.addEventListener('DOMContentLoaded', async () => {
     // Load saved configuration
     await loadConfig();
@@ -19,11 +17,14 @@ document.addEventListener('DOMContentLoaded', async () => {
  */
 async function loadConfig() {
     try {
-        const config = await ConfigManager.init();
-        const modelConfig = await ConfigManager.getModelConfig();
+        const config = await getConfig();
+
+        // Get the current model config
+        const modelType = config.activeModel;
+        const modelConfig = config.models[modelType];
 
         // Populate form fields
-        document.getElementById('model-select').value = config.activeModel;
+        document.getElementById('model-select').value = modelType;
         document.getElementById('endpoint').value = modelConfig.endpoint || 'http://localhost:11434/api/generate';
         document.getElementById('model').value = modelConfig.model || 'deepseek-r1:14b';
         document.getElementById('temperature').value = modelConfig.temperature || 0.7;
@@ -34,6 +35,29 @@ async function loadConfig() {
         console.error('Error loading config:', error);
         showStatus('Error loading settings. Using defaults.', 'error');
     }
+}
+
+/**
+ * Get the current configuration from storage
+ * @returns {Promise<Object>} The configuration object
+ */
+async function getConfig() {
+    return new Promise((resolve) => {
+        chrome.storage.sync.get('aiAssistantConfig', (result) => {
+            const defaultConfig = {
+                activeModel: 'ollama',
+                models: {
+                    ollama: {
+                        endpoint: 'http://localhost:11434/api/generate',
+                        model: 'deepseek-r1:14b',
+                        temperature: 0.7
+                    }
+                }
+            };
+
+            resolve(result.aiAssistantConfig || defaultConfig);
+        });
+    });
 }
 
 /**
@@ -61,9 +85,15 @@ async function saveSettings() {
             throw new Error('Temperature must be between 0 and 2');
         }
 
-        // Save settings
-        await ConfigManager.setActiveModel(modelType);
-        await ConfigManager.setModelConfig(modelType, modelConfig);
+        // Get current config
+        const config = await getConfig();
+
+        // Update config
+        config.activeModel = modelType;
+        config.models[modelType] = modelConfig;
+
+        // Save to storage
+        await saveConfig(config);
 
         // Show success message
         showStatus('Settings saved successfully!', 'success');
@@ -78,6 +108,23 @@ async function saveSettings() {
         console.error('Error saving settings:', error);
         showStatus(`Error: ${error.message}`, 'error');
     }
+}
+
+/**
+ * Save configuration to storage
+ * @param {Object} config - The configuration to save
+ * @returns {Promise<void>}
+ */
+function saveConfig(config) {
+    return new Promise((resolve, reject) => {
+        chrome.storage.sync.set({ 'aiAssistantConfig': config }, () => {
+            if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+            } else {
+                resolve();
+            }
+        });
+    });
 }
 
 /**
@@ -104,7 +151,7 @@ function handleModelChange() {
 function showStatus(message, type) {
     const statusElement = document.getElementById('status');
     statusElement.textContent = message;
-    statusElement.className = `status ${type}`;
+    statusElement.className = `alert ${type === 'success' ? 'alert-success' : 'alert-danger'} status`;
 
     // Hide after 5 seconds
     setTimeout(() => {

@@ -1,3 +1,8 @@
+/**
+ * Background script for LeetCode AI Assistant
+ * Handles API requests and content script initialization
+ */
+
 // Listen for navigation to LeetCode problem pages
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     // Check if the URL matches a LeetCode problem page and the page has finished loading

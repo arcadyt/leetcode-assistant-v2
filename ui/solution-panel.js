@@ -10,6 +10,11 @@ export default class SolutionPanel {
         this.parentElement = parentElement;
         this.panel = null;
         this.currentLanguage = 'java'; // Default language
+        this.tabVisibility = {
+            rephrase: true,
+            hints: true,
+            solution: true
+        };
         this.init();
     }
 
@@ -59,21 +64,27 @@ export default class SolutionPanel {
         </ul>
         
         <div class="tab-content p-3">
-          <div class="tab-content active" id="rephrase-content">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Loading...</span>
+          <div class="tab-pane fade show active" id="rephrase-content">
+            <div class="d-flex justify-content-center">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
             </div>
             <div class="content-area"></div>
           </div>
-          <div class="tab-content" id="hints-content">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Loading...</span>
+          <div class="tab-pane fade" id="hints-content">
+            <div class="d-flex justify-content-center">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
             </div>
             <div class="content-area"></div>
           </div>
-          <div class="tab-content" id="solution-content">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Loading...</span>
+          <div class="tab-pane fade" id="solution-content">
+            <div class="d-flex justify-content-center">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
             </div>
             <div class="content-area"></div>
           </div>
@@ -89,6 +100,37 @@ export default class SolutionPanel {
 
         // Add event listeners
         this.addEventListeners();
+
+        // Inject syntax highlighting
+        this.injectPrismHighlighting();
+    }
+
+    /**
+     * Inject Prism.js for syntax highlighting
+     */
+    injectPrismHighlighting() {
+        if (document.querySelector('#leetcode-ai-assistant-prism-css')) {
+            return; // Already injected
+        }
+
+        const prismCSS = document.createElement('link');
+        prismCSS.rel = 'stylesheet';
+        prismCSS.href = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css';
+        prismCSS.id = 'leetcode-ai-assistant-prism-css';
+        document.head.appendChild(prismCSS);
+
+        const prismJS = document.createElement('script');
+        prismJS.src = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js';
+        prismJS.id = 'leetcode-ai-assistant-prism-js';
+        document.head.appendChild(prismJS);
+
+        // Add language-specific components
+        const languages = ['java', 'javascript', 'python', 'cpp', 'go'];
+        languages.forEach(lang => {
+            const script = document.createElement('script');
+            script.src = `https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-${lang}.min.js`;
+            document.head.appendChild(script);
+        });
     }
 
     /**
@@ -117,6 +159,16 @@ export default class SolutionPanel {
         // Minimize button
         this.panel.querySelector('.btn-minimize').addEventListener('click', () => {
             this.panel.classList.toggle('minimized');
+
+            // Change button text when minimized
+            const minimizeButton = this.panel.querySelector('.btn-minimize');
+            if (this.panel.classList.contains('minimized')) {
+                minimizeButton.textContent = '□';
+                minimizeButton.title = 'Maximize';
+            } else {
+                minimizeButton.textContent = '_';
+                minimizeButton.title = 'Minimize';
+            }
         });
 
         // Language dropdown
@@ -140,8 +192,79 @@ export default class SolutionPanel {
                     detail: { action, language: this.currentLanguage }
                 });
                 this.panel.dispatchEvent(event);
+
+                // Show the corresponding tab
+                const tabId = this.getTabIdFromAction(action);
+                this.showTab(tabId);
             });
         });
+
+        // Tab buttons
+        const tabButtons = this.panel.querySelectorAll('[data-bs-toggle="tab"]');
+        tabButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                // Handle tab switching
+                this.activateTab(e.target.id.replace('-tab', ''));
+            });
+        });
+    }
+
+    /**
+     * Get tab ID from action name
+     * @param {string} action - The action name
+     * @returns {string} The tab ID
+     */
+    getTabIdFromAction(action) {
+        switch (action) {
+            case 'requestProblemRephrase':
+                return 'rephrase';
+            case 'requestHints':
+                return 'hints';
+            case 'requestFullSolution':
+                return 'solution';
+            default:
+                return 'rephrase';
+        }
+    }
+
+    /**
+     * Show a specific tab
+     * @param {string} tabId - The ID of the tab to show
+     */
+    showTab(tabId) {
+        // Find the tab button and click it
+        const tabButton = this.panel.querySelector(`#${tabId}-tab`);
+        if (tabButton) {
+            tabButton.click();
+        }
+    }
+
+    /**
+     * Activate a tab
+     * @param {string} tabId - The ID of the tab to activate
+     */
+    activateTab(tabId) {
+        // Deactivate all tabs
+        const tabPanes = this.panel.querySelectorAll('.tab-pane');
+        tabPanes.forEach(pane => {
+            pane.classList.remove('show', 'active');
+        });
+
+        const tabButtons = this.panel.querySelectorAll('.nav-link');
+        tabButtons.forEach(button => {
+            button.classList.remove('active');
+        });
+
+        // Activate the selected tab
+        const selectedPane = this.panel.querySelector(`#${tabId}-content`);
+        if (selectedPane) {
+            selectedPane.classList.add('show', 'active');
+        }
+
+        const selectedButton = this.panel.querySelector(`#${tabId}-tab`);
+        if (selectedButton) {
+            selectedButton.classList.add('active');
+        }
     }
 
     /**
@@ -178,12 +301,15 @@ export default class SolutionPanel {
      */
     setLoading(tabName, isLoading) {
         const tab = this.panel.querySelector(`#${tabName}-content`);
-        const spinner = tab.querySelector('.spinner-border');
+        const spinner = tab.querySelector('.spinner-border').parentElement;
+        const contentArea = tab.querySelector('.content-area');
 
         if (isLoading) {
-            spinner.style.display = 'inline-block';
+            spinner.style.display = 'flex';
+            contentArea.style.display = 'none';
         } else {
             spinner.style.display = 'none';
+            contentArea.style.display = 'block';
         }
     }
 
@@ -198,6 +324,11 @@ export default class SolutionPanel {
 
         contentArea.innerHTML = this.formatContent(content);
         this.setLoading(tabName, false);
+
+        // Apply syntax highlighting if Prism.js is loaded
+        if (window.Prism) {
+            Prism.highlightAllUnder(contentArea);
+        }
     }
 
     /**
@@ -222,6 +353,33 @@ export default class SolutionPanel {
     }
 
     /**
+     * Set the current language
+     * @param {string} language - The language to set
+     */
+    setLanguage(language) {
+        // Map LeetCode language names to our dropdown options
+        const languageMap = {
+            'java': 'java',
+            'python': 'python',
+            'python3': 'python',
+            'cpp': 'cpp',
+            'javascript': 'javascript',
+            'js': 'javascript',
+            'go': 'go',
+            'golang': 'go'
+        };
+
+        const normalizedLanguage = languageMap[language.toLowerCase()] || 'java';
+
+        // Update dropdown
+        const languageDropdown = this.panel.querySelector('.language-dropdown');
+        if (languageDropdown && languageDropdown.querySelector(`option[value="${normalizedLanguage}"]`)) {
+            languageDropdown.value = normalizedLanguage;
+            this.currentLanguage = normalizedLanguage;
+        }
+    }
+
+    /**
      * Format content for display (convert markdown to HTML)
      * @param {string} content - The content to format
      * @returns {string} The formatted content
@@ -232,8 +390,8 @@ export default class SolutionPanel {
         // Convert markdown code blocks to HTML
         const formattedContent = content
             .replace(/```(\w+)?\n([\s\S]*?)```/g, (match, language, code) => {
-                const langClass = language ? ` class="language-${language}"` : '';
-                return `<pre><code${langClass}>${this.escapeHtml(code)}</code></pre>`;
+                const langClass = language ? `language-${language}` : '';
+                return `<pre><code class="${langClass}">${this.escapeHtml(code)}</code></pre>`;
             })
             .replace(/`([^`]+)`/g, (match, code) => {
                 return `<code>${this.escapeHtml(code)}</code>`;
@@ -244,11 +402,15 @@ export default class SolutionPanel {
             .replace(/^# (.*$)/gim, '<h1>$1</h1>')
             // Convert lists
             .replace(/^\* (.*$)/gim, '<ul><li>$1</li></ul>')
+            .replace(/^- (.*$)/gim, '<ul><li>$1</li></ul>')
             .replace(/^[0-9]+\. (.*$)/gim, '<ol><li>$1</li></ol>')
+            // Convert bold and italic
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*([^*]+)\*/g, '<em>$1</em>')
             // Paragraphs
             .replace(/\n\n/g, '</p><p>');
 
-        return `<p>${formattedContent}</p>`;
+        return `<div class="markdown-content"><p>${formattedContent}</p></div>`;
     }
 
     /**

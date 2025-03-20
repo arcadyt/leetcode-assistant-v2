@@ -10,18 +10,23 @@
   ],
   "host_permissions": [
     "https://leetcode.com/*",
-    "http://localhost:11434/*",
-    "https://cdn.jsdelivr.net/*"
+    "http://localhost:11434/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["https://leetcode.com/problems/*"],
-      "js": ["content-script.js"],
-      "css": ["ui/styles.css"],
-      "type": "module"
+      "js": ["vendor/lodash.min.js", "content-script.js"],
+      "css": ["ui/styles.css"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["ui/*", "vendor/*"],
+      "matches": ["https://leetcode.com/*"]
     }
   ],
   "action": {
@@ -36,11 +41,5 @@
     "16": "assets/icon16.png",
     "48": "assets/icon48.png",
     "128": "assets/icon128.png"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["ui/*"],
-      "matches": ["https://leetcode.com/*"]
-    }
-  ]
+  }
 }
