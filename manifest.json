@@ -19,14 +19,19 @@
   "content_scripts": [
     {
       "matches": ["https://leetcode.com/problems/*"],
-      "js": ["content-script.js"],
-      "css": ["ui/styles.css"],
-      "type": "module"
+      "js": ["content-script-loader.js"],
+      "css": ["ui/styles.css"]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["ui/*", "vendor/*", "models/*", "utils/*"],
+      "resources": [
+        "content-script.js",
+        "ui/*",
+        "vendor/*",
+        "models/*",
+        "utils/*"
+      ],
       "matches": ["https://leetcode.com/*"]
     }
   ],

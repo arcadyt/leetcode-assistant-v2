@@ -3,13 +3,31 @@
  * Runs on LeetCode problem pages and injects the AI assistant UI
  */
 
-// Import dependencies
-import domUtils from './utils/dom-utils.js';
-import { extractProblemDetails, getCurrentLanguage } from './utils/problem-extractor.js';
-import SolutionPanel from './ui/solution-panel.js';
-import ConfigManager from './models/config.js';
-import OllamaAdapter from './models/ollama-adapter.js';
-import _ from './vendor/lodash.min.js';
+// Import dependencies - use relative URLs with runtime.getURL to make them work in modules
+const baseUrl = chrome.runtime.getURL('');
+
+// Dynamic imports for module support
+async function loadDependencies() {
+    const domUtils = await import(new URL('./utils/dom-utils.js', baseUrl).href);
+    const problemExtractor = await import(new URL('./utils/problem-extractor.js', baseUrl).href);
+    const SolutionPanelModule = await import(new URL('./ui/solution-panel.js', baseUrl).href);
+    const ConfigManagerModule = await import(new URL('./models/config.js', baseUrl).href);
+    const OllamaAdapterModule = await import(new URL('./models/ollama-adapter.js', baseUrl).href);
+
+    // Load lodash from vendor directory
+    const lodashUrl = new URL('./vendor/lodash.min.js', baseUrl).href;
+    const lodashModule = await import(lodashUrl);
+
+    return {
+        domUtils: domUtils.default || domUtils,
+        extractProblemDetails: problemExtractor.extractProblemDetails,
+        getCurrentLanguage: problemExtractor.getCurrentLanguage,
+        SolutionPanel: SolutionPanelModule.default || SolutionPanelModule,
+        ConfigManager: ConfigManagerModule.default || ConfigManagerModule,
+        OllamaAdapter: OllamaAdapterModule.default || OllamaAdapterModule,
+        _: lodashModule.default || window._ || lodashModule
+    };
+}
 
 /**
  * Main class for the LeetCode AI Assistant
@@ -23,6 +41,7 @@ class LeetCodeAssistant {
         this.initialized = false;
         this.retryCount = 0;
         this.maxRetries = 3;
+        this.dependencies = null;
     }
 
     /**
@@ -39,14 +58,18 @@ class LeetCodeAssistant {
         try {
             console.log('Initializing LeetCode AI Assistant...');
 
-            // First inject required dependencies (Bootstrap, Lodash)
+            // Load dependencies
+            this.dependencies = await loadDependencies();
+            console.log('Dependencies loaded');
+
+            // First inject required dependencies (Bootstrap)
             this.injectDependencies();
 
             // Wait for the problem content to load
             await this.waitForProblemContent();
 
             // Extract problem details
-            this.problemDetails = extractProblemDetails();
+            this.problemDetails = this.dependencies.extractProblemDetails();
             console.log('Extracted problem details:', this.problemDetails);
 
             // Initialize AI adapter with config from storage
@@ -90,8 +113,12 @@ class LeetCodeAssistant {
         bootstrapCSS.id = 'leetcode-ai-assistant-bootstrap-css';
         document.head.appendChild(bootstrapCSS);
 
-        // No need to inject Lodash as it will be imported via ES modules
-        // No need for Prism.js - we'll use basic code formatting
+        // Add custom styles
+        const customCSS = document.createElement('link');
+        customCSS.rel = 'stylesheet';
+        customCSS.href = chrome.runtime.getURL('ui/styles.css');
+        customCSS.id = 'leetcode-ai-assistant-custom-css';
+        document.head.appendChild(customCSS);
     }
 
     /**
@@ -99,7 +126,7 @@ class LeetCodeAssistant {
      */
     async waitForProblemContent() {
         try {
-            await domUtils.waitForElement('[data-cy="question-content"]');
+            await this.dependencies.domUtils.waitForElement('[data-cy="question-content"]');
             // Give a small delay for the rest of the content to load
             return new Promise(resolve => setTimeout(resolve, 500));
         } catch (error) {
@@ -113,20 +140,21 @@ class LeetCodeAssistant {
      */
     async initializeAIAdapter() {
         try {
+            const ConfigManager = this.dependencies.ConfigManager;
             const config = await ConfigManager.init();
             const modelConfig = await ConfigManager.getModelConfig();
 
             // Create the appropriate adapter based on the active model
             if (config.activeModel === 'ollama') {
-                this.aiAdapter = new OllamaAdapter(modelConfig);
+                this.aiAdapter = new this.dependencies.OllamaAdapter(modelConfig);
             } else {
                 // Default to Ollama if no matching adapter
-                this.aiAdapter = new OllamaAdapter(modelConfig);
+                this.aiAdapter = new this.dependencies.OllamaAdapter(modelConfig);
             }
         } catch (error) {
             console.error('Error initializing AI adapter:', error);
             // Use default Ollama adapter as fallback
-            this.aiAdapter = new OllamaAdapter({
+            this.aiAdapter = new this.dependencies.OllamaAdapter({
                 endpoint: 'http://localhost:11434/api/generate',
                 model: 'deepseek-r1:14b',
                 temperature: 0.7
@@ -143,7 +171,7 @@ class LeetCodeAssistant {
         container.id = 'leetcode-ai-assistant-container';
 
         // Find the best place to inject the UI
-        const injectionPoint = domUtils.findInjectionPoint();
+        const injectionPoint = this.dependencies.domUtils.findInjectionPoint();
         if (injectionPoint === document.body) {
             // If we're appending to body, make sure the container is positioned properly
             container.style.position = 'fixed';
@@ -155,10 +183,10 @@ class LeetCodeAssistant {
         injectionPoint.appendChild(container);
 
         // Initialize the panel
-        this.panel = new SolutionPanel(container);
+        this.panel = new this.dependencies.SolutionPanel(container);
 
         // Set the initial language based on the problem
-        const detectedLanguage = getCurrentLanguage();
+        const detectedLanguage = this.dependencies.getCurrentLanguage();
         if (detectedLanguage) {
             this.panel.setLanguage(detectedLanguage);
         }
@@ -191,6 +219,12 @@ class LeetCodeAssistant {
             if (contentArea.innerHTML && contentArea.innerHTML !== '') {
                 this.loadSolution();
             }
+        });
+
+        // Listen for settings updates from popup
+        window.addEventListener('leetcodeAISettingsUpdated', async () => {
+            console.log('Settings updated, reinitializing AI adapter');
+            await this.initializeAIAdapter();
         });
     }
 
@@ -262,27 +296,27 @@ class LeetCodeAssistant {
     }
 }
 
+// Create message passing interface to communicate with background script
+function sendMessageToBackground(message) {
+    return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(message, (response) => {
+            if (chrome.runtime.lastError) {
+                // Suppress the error for messaging
+                console.log('Message sent, no response expected');
+                resolve(null);
+            } else {
+                resolve(response);
+            }
+        });
+    });
+}
+
 // Initialize the assistant when the content script loads
 const assistant = new LeetCodeAssistant();
+assistant.init();
 
-// Listen for messages from the background script
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log('Content script received message:', request);
-    if (request.action === 'initialize') {
-        assistant.init();
-        // Send response to prevent "Receiving end does not exist" errors
-        sendResponse({status: 'initializing'});
-    } else if (request.action === 'settingsUpdated') {
-        // Reinitialize the AI adapter when settings are updated
-        assistant.initializeAIAdapter().then(() => {
-            sendResponse({status: 'settings updated'});
-        });
-    }
-    return true; // Indicates we'll handle the response asynchronously
-});
-
-// Also initialize on page load
-window.addEventListener('load', () => {
-    console.log('Page loaded, initializing assistant...');
-    assistant.init();
-});
+// Export API for the content script loader to use
+window.leetcodeAIAssistant = {
+    refresh: () => assistant.init(),
+    reloadConfig: () => assistant.initializeAIAdapter()
+};
