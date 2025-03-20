@@ -387,14 +387,13 @@ export default class SolutionPanel {
     formatContent(content) {
         if (!content) return '';
 
-        // Convert markdown code blocks to HTML
+        // Convert markdown code blocks to HTML with simple styling
         const formattedContent = content
             .replace(/```(\w+)?\n([\s\S]*?)```/g, (match, language, code) => {
-                const langClass = language ? `language-${language}` : '';
-                return `<pre><code class="${langClass}">${this.escapeHtml(code)}</code></pre>`;
+                return `<pre><code class="code-block">${this.escapeHtml(code)}</code></pre>`;
             })
             .replace(/`([^`]+)`/g, (match, code) => {
-                return `<code>${this.escapeHtml(code)}</code>`;
+                return `<code class="inline-code">${this.escapeHtml(code)}</code>`;
             })
             // Convert headers
             .replace(/^### (.*$)/gim, '<h3>$1</h3>')

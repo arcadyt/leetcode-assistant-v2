@@ -5,10 +5,11 @@
 
 // Import dependencies
 import domUtils from './utils/dom-utils.js';
-import problemExtractor from './utils/problem-extractor.js';
+import { extractProblemDetails, getCurrentLanguage } from './utils/problem-extractor.js';
 import SolutionPanel from './ui/solution-panel.js';
 import ConfigManager from './models/config.js';
 import OllamaAdapter from './models/ollama-adapter.js';
+import _ from './vendor/lodash.min.js';
 
 /**
  * Main class for the LeetCode AI Assistant
@@ -45,7 +46,7 @@ class LeetCodeAssistant {
             await this.waitForProblemContent();
 
             // Extract problem details
-            this.problemDetails = problemExtractor.extractProblemDetails();
+            this.problemDetails = extractProblemDetails();
             console.log('Extracted problem details:', this.problemDetails);
 
             // Initialize AI adapter with config from storage
@@ -82,21 +83,15 @@ class LeetCodeAssistant {
             return; // Dependencies already injected
         }
 
+        // Add Bootstrap CSS from local vendor directory
         const bootstrapCSS = document.createElement('link');
         bootstrapCSS.rel = 'stylesheet';
-        bootstrapCSS.href = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css';
+        bootstrapCSS.href = chrome.runtime.getURL('vendor/bootstrap.min.css');
         bootstrapCSS.id = 'leetcode-ai-assistant-bootstrap-css';
         document.head.appendChild(bootstrapCSS);
 
-        const bootstrapJS = document.createElement('script');
-        bootstrapJS.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js';
-        bootstrapJS.id = 'leetcode-ai-assistant-bootstrap-js';
-        document.head.appendChild(bootstrapJS);
-
-        const lodashJS = document.createElement('script');
-        lodashJS.src = 'https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js';
-        lodashJS.id = 'leetcode-ai-assistant-lodash-js';
-        document.head.appendChild(lodashJS);
+        // No need to inject Lodash as it will be imported via ES modules
+        // No need for Prism.js - we'll use basic code formatting
     }
 
     /**
@@ -163,7 +158,7 @@ class LeetCodeAssistant {
         this.panel = new SolutionPanel(container);
 
         // Set the initial language based on the problem
-        const detectedLanguage = problemExtractor.getCurrentLanguage();
+        const detectedLanguage = getCurrentLanguage();
         if (detectedLanguage) {
             this.panel.setLanguage(detectedLanguage);
         }
