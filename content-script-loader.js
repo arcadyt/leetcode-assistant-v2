@@ -5,7 +5,7 @@
 (function() {
     // Create a script tag to load the module
     const script = document.createElement('script');
-    script.type = 'module';
+    script.type = 'text/javascript'; // Change from 'module' to 'text/javascript'
     script.src = chrome.runtime.getURL('content-script.js');
 
     // Add error handling
